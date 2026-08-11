@@ -121,7 +121,7 @@ springBoot {
 tasks.named<BootBuildImage>("bootBuildImage") {
     imageName = "$group/${project.name}"
     publish = false
-    environment = System.getenv()
+    environment = System.getenv().filterKeys { it in setOf("REGISTRY_URL", "REGISTRY_USERNAME", "REGISTRY_PASSWORD", "DOCKER_METADATA_OUTPUT_TAGS") }
 
     docker {
         val environment = environment.get()

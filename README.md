@@ -5,6 +5,34 @@ the [EUDI Wallet Reference Implementation project description](https://github.co
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 
+> [!NOTE]
+> **This checkout is one piece of a larger local demo** - see the
+> [top-level README](../README.md) for how it fits together with the
+> issuer, wallet, and client-site apps, and for the note on why this
+> directory (the verifier *backend*) is separate from
+> [`eudi-web-verifier`](../eudi-web-verifier/) (the verifier *UI*), which
+> the compose file below builds and runs alongside it.
+>
+> Two things in the "Run all verifier components together" section below
+> are specific to this demo and differ from a plain upstream checkout:
+> - The compose file lives at **`docker-compose/`**, not `docker/` - that
+>   directory doesn't exist in this checkout (`cd docker-compose`, not
+>   `cd docker`), and its haproxy cert is
+>   [`docker-compose/haproxy/certs/localhost.tls.pem`](docker-compose/haproxy/certs/localhost.tls.pem),
+>   not `haproxy.pem`.
+> - This demo puts the whole stack behind a shared gateway, so once
+>   `demo-up.sh` (in the top-level repo) has also brought that up, the
+>   running services are reachable at `https://verifier.localhost/` rather
+>   than a direct `localhost:8443`.
+> - `docker-compose/docker-compose.yaml` sets
+>   `VERIFIER_CLIENTIDPREFIX=x509_hash` and a matching
+>   `VERIFIER_ORIGINALCLIENTID` (a hash of this demo's actual
+>   `verifier-access.p12` leaf certificate, not the value in any upstream
+>   reference config - that value is cert-specific, so swapping the
+>   certificate means recomputing it) - without this, HAIP-mode wallets
+>   reject the presentation request with
+>   `HaipNotSupported.ClientIdPrefixX509HashMustBeUsed`.
+
 ## Table of contents
 
 * [Overview](#overview)
@@ -72,30 +100,30 @@ To build a local docker image of the service execute
 
 ## Run all verifier components together
 
-To start both verifier UI and verifier backend services together a docker compose file has been implemented that can be found [here](docker/docker-compose.yaml)
+To start both verifier UI and verifier backend services together a docker compose file has been implemented that can be found [here](docker-compose/docker-compose.yaml)
 Running the command below will start the following service:
 - verifier: The Verifier/RP trusted end-point 
 - verifier-ui: The Verifier's UI application
 - haproxy: A reverse proxy for SSL termination 
-  - To change the ssl certificate update [haproxy.pem](docker/haproxy.pem)  
-  - To reconfigure haproxy update file [haproxy.conf](docker/haproxy.conf)  
+  - To change the ssl certificate update [localhost.tls.pem](docker-compose/haproxy/certs/localhost.tls.pem)  
+  - To reconfigure haproxy update file [haproxy.conf](docker-compose/haproxy/haproxy.conf)  
 
 To start the docker compose environment
 ```bash
 # From project root directory 
-cd docker
+cd docker-compose
 docker-compose up -d
 ```
 
 To stop the docker compose environment
 ```bash
 # From project root directory 
-cd docker
+cd docker-compose
 docker-compose down
 ```
 
 The 'verifier' service can be configured by setting its configuration properties described [here](#configuration) by setting them as environment 
-variables of the service in [docker-compose.yaml](docker/docker-compose.yaml)  
+variables of the service in [docker-compose.yaml](docker-compose/docker-compose.yaml)  
 
 > [!IMPORTANT]  
 > Starting with v0.7.0, the Docker image for Verifier Endpoint is published as `ghcr.io/eu-digital-identity-wallet/eudi-srv-verifier-endpoint`.

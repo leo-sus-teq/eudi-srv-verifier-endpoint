@@ -1,0 +1,77 @@
+name: eudi-verifier
+
+networks:
+  default:
+    driver: bridge
+
+services:
+  verifier-backend:
+    # Built locally via `./gradlew bootBuildImage` from the source in this repo
+    # (rebuild after any source change and re-run `docker compose up`). Tag is
+    # "build/eudi-srv-verifier-endpoint:latest" for the same reason as the issuer's
+    # own image tag - see that repo's docker-compose.yaml comment.
+    image: build/eudi-srv-verifier-endpoint:latest
+    pull_policy: never
+    container_name: verifier-backend
+    volumes:
+      - ./verifier-backend/verifier-access.p12:/verifier-access.p12
+    environment:
+      - VERIFIER_PUBLICURL=https://verifier.localhost
+      - VERIFIER_DEFAULTHTTPRESPONSEMODE=DirectPostJwt
+      - VERIFIER_ACCESS_CERTIFICATE_KEYSTORE=file:/verifier-access.p12
+      - VERIFIER_ACCESS_CERTIFICATE_KEYSTORE_TYPE=pkcs12
+      - VERIFIER_ACCESS_CERTIFICATE_KEYSTORE_PASSWORD=verifier
+      - VERIFIER_ACCESS_CERTIFICATE_ALIAS=verifier-access
+      - VERIFIER_ACCESS_CERTIFICATE_PASSWORD=verifier
+      # Our verifier-access key is P-256, not the reference's default-assumed P-521.
+      - VERIFIER_ACCESS_CERTIFICATE_SIGNING_ALGORITHM=ES256
+      # Without these, verifier.clientIdPrefix defaults to "pre-registered", but the
+      # UI's default profile is HAIP - which requires x509_hash specifically (backend
+      # rejects every submission with HaipNotSupported.ClientIdPrefixX509HashMustBeUsed
+      # otherwise). originalClientId must be the base64url(no-pad) SHA-256 hash of the
+      # DER-encoded verifier-access.p12 leaf cert above, not the reference repo's
+      # hardcoded value (that one's hash matches *its* demo keystore, not ours).
+      # Recompute if verifier-access.p12 is ever regenerated:
+      #   openssl pkcs12 -in verifier-access.p12 -nokeys -passin pass:verifier | \
+      #     openssl x509 -outform DER | \
+      #     openssl dgst -sha256 -binary | openssl base64 -A | tr '+/' '-_' | tr -d '='
+      - VERIFIER_CLIENTIDPREFIX=x509_hash
+      - VERIFIER_ORIGINALCLIENTID=--DCsJhUKVx8wMVNS8PqB-1i6KdQT1GXyGxhr4vH35M
+      - VERIFIER_ATTESTATIONCLASSIFICATIONS={"pid":{"vcts":["urn:eudi:pid:1"],"docTypes":["eu.europa.ec.eudi.pid.1"]},"qeaa":{"vcts":[],"docTypes":[]},"pubeaa":{"vcts":["urn:eudi:ehic:1","urn:eudi:residence.permit:1"],"docTypes":[]},"eaa":[{"useCase":"mDL","vcts":[],"docTypes":["org.iso.18013.5.1.mDL"]},{"useCase":"diploma","vcts":["urn:eu.europa.ec.eudi:learning:credential:1"],"docTypes":[]},{"useCase":"schufa","vcts":["urn:eudi:schufa:1"],"docTypes":["eudi.schufa.1"]},{"useCase":"arbeitsvertrag","vcts":["urn:eudi:trusteq.arbeitsvertrag:1"],"docTypes":["eudi.trusteq.arbeitsvertrag.1"]}]}
+      # Required since v0.11.0: every /ui/presentations request must resolve either an
+      # intended_use_id or an inline registration_certificate (VerifierConfig's
+      # resolveRegistrationCertificate). Self-signed dev "registration certificate"
+      # (rc-wrp+jwt) covering every attestation type this demo issues, carried over
+      # unchanged from the prior in-repo setup (it's independent of the JAR-signing
+      # access certificate above, so the new dedicated key doesn't affect it).
+      - VERIFIER_INTENDEDUSES_0_ID=1
+      - VERIFIER_INTENDEDUSES_0_DESCRIPTION=TRUSTEQ EUDI branded demo
+      - VERIFIER_INTENDEDUSES_0_REGISTRATIONCERTIFICATE=eyJhbGciOiJFUzI1NiIsInR5cCI6InJjLXdycCtqd3QiLCJ4NWMiOlsiTUlJQmh6Q0NBUzZnQXdJQkFnSVVNNFFYN0Uwc1NIQ2hhSWkvWk02ZEN5bWZZaDR3Q2dZSUtvWkl6ajBFQXdJd1JERWpNQ0VHQTFVRUF3d2FWRkpWVTFSRlVTQkZWVVJKSUVSbGJXOGdWbVZ5YVdacFpYSXhFREFPQmdOVkJBb01CMVJTVlZOVVJWRXhDekFKQmdOVkJBWVRBa1ZWTUI0WERUSTJNREV3TVRBd01EQXdNRm9YRFRNMk1ERXdNVEF3TURBd01Gb3dSREVqTUNFR0ExVUVBd3dhVkZKVlUxUkZVU0JGVlVSSklFUmxiVzhnVm1WeWFXWnBaWEl4RURBT0JnTlZCQW9NQjFSU1ZWTlVSVkV4Q3pBSkJnTlZCQVlUQWtWVk1Ga3dFd1lIS29aSXpqMENBUVlJS29aSXpqMERBUWNEUWdBRVEwQjY2aUt2M3Vlc1VWWnQvYTBybkRKU3pycFJHNlRoY3VybVVXL3ZCTndxSnVVak9UZFU1RjNXeWI4TXRaek1pc2hGeE5vUVRscTNUejVqelN5R3hqQUtCZ2dxaGtqT1BRUURBZ05IQURCRUFpQllPanJqcXYzaFNKWHdJU1A4NmlnU2w0dS9qNjJzWVlLSFN6ZFRzQ1dicHdJZ2NYL0lPYklDNys5Q255WVA2QllGekFDQzZoTmM1QUg1SUJGZzFDclpZUDA9Il19.eyJlbnRpdGxlbWVudHMiOlsiaHR0cHM6Ly91cmkuZXRzaS5vcmcvMTk0NzUvRW50aXRsZW1lbnQvU2VydmljZV9Qcm92aWRlciJdLCJzdWIiOiJUUlVTVEVRLURFTU8tMSIsImNvdW50cnkiOiJFVSIsInBvbGljeV9pZCI6WyIwLjQuMC4xOTQ3NS4zLjEiXSwiY3JlZGVudGlhbHMiOlt7ImZvcm1hdCI6ImRjK3NkLWp3dCIsIm1ldGEiOnsidmN0X3ZhbHVlcyI6WyJ1cm46ZXVkaTpwaWQ6MSJdfSwiY2xhaW0iOlt7InBhdGgiOlsiZmFtaWx5X25hbWUiXX0seyJwYXRoIjpbImdpdmVuX25hbWUiXX0seyJwYXRoIjpbImJpcnRoZGF0ZSJdfSx7InBhdGgiOlsiYmlydGhfZmFtaWx5X25hbWUiXX0seyJwYXRoIjpbImJpcnRoX2dpdmVuX25hbWUiXX0seyJwYXRoIjpbInBsYWNlX29mX2JpcnRoIl19LHsicGF0aCI6WyJhZGRyZXNzIl19LHsicGF0aCI6WyJzZXgiXX0seyJwYXRoIjpbIm5hdGlvbmFsaXRpZXMiXX0seyJwYXRoIjpbImRhdGVfb2ZfaXNzdWFuY2UiXX0seyJwYXRoIjpbImRhdGVfb2ZfZXhwaXJ5Il19LHsicGF0aCI6WyJpc3N1aW5nX2F1dGhvcml0eSJdfSx7InBhdGgiOlsiZG9jdW1lbnRfbnVtYmVyIl19LHsicGF0aCI6WyJwZXJzb25hbF9hZG1pbmlzdHJhdGl2ZV9udW1iZXIiXX0seyJwYXRoIjpbImlzc3VpbmdfY291bnRyeSJdfSx7InBhdGgiOlsiaXNzdWluZ19qdXJpc2RpY3Rpb24iXX0seyJwYXRoIjpbInBpY3R1cmUiXX0seyJwYXRoIjpbImVtYWlsIl19LHsicGF0aCI6WyJwaG9uZV9udW1iZXIiXX0seyJwYXRoIjpbInRydXN0X2FuY2hvciJdfSx7InBhdGgiOlsiYXR0ZXN0YXRpb25fbGVnYWxfY2F0ZWdvcnkiXX1dfSx7ImZvcm1hdCI6ImRjK3NkLWp3dCIsIm1ldGEiOnsidmN0X3ZhbHVlcyI6WyJ1cm46ZXVkaTplaGljOjEiXX0sImNsYWltIjpbeyJwYXRoIjpbImZhbWlseV9uYW1lIl19LHsicGF0aCI6WyJnaXZlbl9uYW1lIl19LHsicGF0aCI6WyJiaXJ0aF9kYXRlIl19LHsicGF0aCI6WyJwZXJzb25hbF9hZG1pbmlzdHJhdGl2ZV9udW1iZXIiXX0seyJwYXRoIjpbImlzc3VpbmdfYXV0aG9yaXR5X2lkIl19LHsicGF0aCI6WyJpc3N1aW5nX2F1dGhvcml0eV9uYW1lIl19LHsicGF0aCI6WyJpc3N1aW5nX2NvdW50cnkiXX0seyJwYXRoIjpbImRhdGVfb2ZfZXhwaXJ5Il19XX0seyJmb3JtYXQiOiJkYytzZC1qd3QiLCJtZXRhIjp7InZjdF92YWx1ZXMiOlsidXJuOmV1ZGk6cmVzaWRlbmNlLnBlcm1pdDoxIl19LCJjbGFpbSI6W3sicGF0aCI6WyJmYW1pbHlfbmFtZSJdfSx7InBhdGgiOlsiZ2l2ZW5fbmFtZSJdfSx7InBhdGgiOlsiYmlydGhfZGF0ZSJdfSx7InBhdGgiOlsibmF0aW9uYWxpdHkiXX0seyJwYXRoIjpbImRvY3VtZW50X251bWJlciJdfSx7InBhdGgiOlsiYWRtaW5pc3RyYXRpdmVfbnVtYmVyIl19LHsicGF0aCI6WyJpc3N1aW5nX2F1dGhvcml0eSJdfSx7InBhdGgiOlsiaXNzdWluZ19jb3VudHJ5Il19LHsicGF0aCI6WyJkYXRlX29mX2lzc3VhbmNlIl19LHsicGF0aCI6WyJkYXRlX29mX2V4cGlyeSJdfSx7InBhdGgiOlsicmVzaWRlbnRfYWRkcmVzcyJdfV19LHsiZm9ybWF0IjoiZGMrc2Qtand0IiwibWV0YSI6eyJ2Y3RfdmFsdWVzIjpbInVybjpldWRpOnNjaHVmYToxIl19LCJjbGFpbSI6W3sicGF0aCI6WyJmYW1pbHlfbmFtZSJdfSx7InBhdGgiOlsiZ2l2ZW5fbmFtZSJdfSx7InBhdGgiOlsiYmlydGhfZGF0ZSJdfSx7InBhdGgiOlsiY3JlZGl0X3Njb3JlIl19LHsicGF0aCI6WyJyZXBvcnRfZGF0ZSJdfSx7InBhdGgiOlsidmFsaWRfdW50aWwiXX0seyJwYXRoIjpbImlzc3VpbmdfZW50aXR5Il19XX0seyJmb3JtYXQiOiJkYytzZC1qd3QiLCJtZXRhIjp7InZjdF92YWx1ZXMiOlsidXJuOmV1LmV1cm9wYS5lYy5ldWRpOmxlYXJuaW5nOmNyZWRlbnRpYWw6MSJdfSwiY2xhaW0iOlt7InBhdGgiOlsiaXNzdWluZ19hdXRob3JpdHkiXX0seyJwYXRoIjpbImlzc3VpbmdfY291bnRyeSJdfSx7InBhdGgiOlsiZGF0ZV9vZl9pc3N1YW5jZSJdfSx7InBhdGgiOlsiZGF0ZV9vZl9leHBpcnkiXX0seyJwYXRoIjpbImZhbWlseV9uYW1lIl19LHsicGF0aCI6WyJnaXZlbl9uYW1lIl19LHsicGF0aCI6WyJhY2hpZXZlbWVudF90aXRsZSJdfSx7InBhdGgiOlsiYWNoaWV2ZW1lbnRfZGVzY3JpcHRpb24iXX0seyJwYXRoIjpbImxlYXJuaW5nX291dGNvbWVzIl19LHsicGF0aCI6WyJhc3Nlc3NtZW50X2dyYWRlIl19LHsicGF0aCI6WyJsYW5ndWFnZV9vZl9jbGFzc2VzIl19LHsicGF0aCI6WyJsZWFybmVyX2lkZW50aWZpY2F0aW9uIl19LHsicGF0aCI6WyJleHBlY3RlZF9zdHVkeV90aW1lIl19LHsicGF0aCI6WyJsZXZlbF9vZl9sZWFybmluZ19leHBlcmllbmNlIl19LHsicGF0aCI6WyJ0eXBlc19vZl9xdWFsaXR5X2Fzc3VyYW5jZSJdfSx7InBhdGgiOlsicHJlcmVxdWlzaXRlc190b19lbnJvbGwiXX0seyJwYXRoIjpbImludGVncmF0aW9uX3N0YWNrYWJpbGl0eV9vcHRpb25zIl19XX0seyJmb3JtYXQiOiJkYytzZC1qd3QiLCJtZXRhIjp7InZjdF92YWx1ZXMiOlsidXJuOmV1ZGk6dHJ1c3RlcS5hcmJlaXRzdmVydHJhZzoxIl19LCJjbGFpbSI6W3sicGF0aCI6WyJlbXBsb3llZV9mYW1pbHlfbmFtZSJdfSx7InBhdGgiOlsiZW1wbG95ZWVfZ2l2ZW5fbmFtZSJdfSx7InBhdGgiOlsiam9iX3RpdGxlIl19LHsicGF0aCI6WyJlbXBsb3ltZW50X3N0YXJ0X2RhdGUiXX0seyJwYXRoIjpbImVtcGxveWVyIl19LHsicGF0aCI6WyJjb250cmFjdF90eXBlIl19LHsicGF0aCI6WyJkZXBhcnRtZW50Il19XX1dLCJwdXJwb3NlIjpbeyJsYW5nIjoiZW4iLCJ2YWx1ZSI6IlRSVVNURVEgRVVESSBicmFuZGVkIGRlbW8gLSBjcmVkZW50aWFsIHByZXNlbnRhdGlvbiJ9XSwicmVnaXN0cnlfdXJpIjoiaHR0cHM6Ly90cnVzdGVxLmV4YW1wbGUvcmVnaXN0cnkiLCJjZXJ0aWZpY2F0ZV9wb2xpY3kiOiJodHRwczovL3RydXN0ZXEuZXhhbXBsZS9jZXJ0aWZpY2F0ZS1wb2xpY3kiLCJzcnZfZGVzY3JpcHRpb24iOlt7ImxhbmciOiJlbiIsInZhbHVlIjoiU2VsZi1ob3N0ZWQgRVVESSByZWZlcmVuY2UgdmVyaWZpZXIgZm9yIHRoZSBUUlVTVEVRIGJyYW5kZWQgZGVtbyJ9XSwic3VwcG9ydF91cmkiOiJodHRwczovL2xvY2FsaG9zdDo4NDQzL3N1cHBvcnQiLCJzdXBlcnZpc29yeV9hdXRob3JpdHkiOnsiZW1haWwiOiJzdXBlcnZpc29yeUBhdXRob3JpdHkuZXhhbXBsZS5ldSIsInBob25lIjoiKzQ5MDAwMDAwMCIsInVyaSI6Imh0dHBzOi8vc3VwZXJ2aXNvcnkuYXV0aG9yaXR5LmV4YW1wbGUuZXUifSwicHJpdmFjeV9wb2xpY3kiOiJodHRwczovL2xvY2FsaG9zdDo4NDQzL3ByaXZhY3kiLCJuYW1lIjoiVFJVU1RFUSBFVURJIERlbW8gVmVyaWZpZXIiLCJpbmZvX3VyaSI6Imh0dHBzOi8vbG9jYWxob3N0Ojg0NDMiLCJzdWJfbG4iOiJUUlVTVEVRIiwiaWF0IjoxNzk4NzYxNjAwfQ.9jOC1vSzcOPsujhGekwjxfci_lZe-dAF9tPo__QFG3-npsU7xjExPDeCKzeg1YQ4dhgCkz5UVcfPeBkKFvO5Ng
+    networks:
+      - default
+
+  verifier-ui:
+    build:
+      context: ../../eudi-web-verifier
+      dockerfile: Dockerfile
+    container_name: verifier-ui
+    environment:
+      - HOST_API=https://verifier.localhost
+    networks:
+      - default
+
+  haproxy:
+    image: haproxy:2.8.3
+    container_name: verifier-haproxy
+    # No host ports published: the demo gateway (../../gateway) is the sole
+    # entry point now, reaching this on the docker network as https://verifier.localhost.
+    depends_on:
+      verifier-backend:
+        condition: service_started
+      verifier-ui:
+        condition: service_started
+    volumes:
+      - ./haproxy/haproxy.conf:/usr/local/etc/haproxy/haproxy.cfg
+      - ./haproxy/certs/:/etc/ssl/certs/
+    networks:
+      - default

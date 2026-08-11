@@ -38,3 +38,15 @@ out/
 
 ### Kotlin ###
 .kotlin
+
+### Demo-only secrets & generated certs/keystores ###
+# Self-signed dev TLS cert and the verifier's own access-certificate
+# keystore/truststore - all regenerable per-environment, never meant to be
+# shared between machines. Never committed even though a working demo
+# needs them to exist locally - see the top-level demo repo's README for
+# how they get (re)generated on first run.
+docker-compose/haproxy/certs/*
+docker-compose/verifier-backend/*.p12
+src/main/resources/*.jks
+!docker-compose/haproxy/certs/.gitkeep
+!docker-compose/verifier-backend/.gitkeep
