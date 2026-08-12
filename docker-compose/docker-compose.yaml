@@ -16,7 +16,7 @@ services:
     volumes:
       - ./verifier-backend/verifier-access.p12:/verifier-access.p12
     environment:
-      - VERIFIER_PUBLICURL=https://verifier.localhost
+      - VERIFIER_PUBLICURL=${DEMO_SCHEME:-https}://${VERIFIER_HOST:-verifier.localhost}
       - VERIFIER_DEFAULTHTTPRESPONSEMODE=DirectPostJwt
       - VERIFIER_ACCESS_CERTIFICATE_KEYSTORE=file:/verifier-access.p12
       - VERIFIER_ACCESS_CERTIFICATE_KEYSTORE_TYPE=pkcs12
@@ -56,15 +56,20 @@ services:
       dockerfile: Dockerfile
     container_name: verifier-ui
     environment:
-      - HOST_API=https://verifier.localhost
+      # Read by eudi-web-verifier's nginx envsubst-on-templates entrypoint
+      # (nginx/templates/nginx.conf.template's sub_filter) - already a
+      # working templating mechanism, just needed the value to stop being
+      # a literal.
+      - HOST_API=${DEMO_SCHEME:-https}://${VERIFIER_HOST:-verifier.localhost}
     networks:
       - default
 
   haproxy:
     image: haproxy:2.8.3
     container_name: verifier-haproxy
-    # No host ports published: the demo gateway (../../gateway) is the sole
-    # entry point now, reaching this on the docker network as https://verifier.localhost.
+    # No host ports published: the demo gateway (../../eudi-gateway) is the
+    # sole entry point now, reaching this on the docker network as
+    # ${DEMO_SCHEME:-https}://${VERIFIER_HOST:-verifier.localhost}.
     depends_on:
       verifier-backend:
         condition: service_started
