@@ -78,5 +78,11 @@ services:
     volumes:
       - ./haproxy/haproxy.conf:/usr/local/etc/haproxy/haproxy.cfg
       - ./haproxy/certs/:/etc/ssl/certs/
+    # Bare passthrough, no default - see ../../../eudi-gateway/docker-compose.yaml's
+    # comment on DEMO_TLS_DISABLED for why it must be truly absent (not
+    # set-to-empty) when unset. Controls haproxy.conf's own `.if
+    # defined(DEMO_TLS_DISABLED)` around this stack's :8443 bind.
+    environment:
+      - DEMO_TLS_DISABLED
     networks:
       - default

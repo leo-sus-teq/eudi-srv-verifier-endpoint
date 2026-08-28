@@ -1,0 +1,22 @@
+# Thin wrapper for Azure Container Apps (or any target with no equivalent of
+# docker-compose's runtime bind mount). verifier-access.p12 is static,
+# already git-committed demo key material - not a real secret - so baking
+# it into the image at build time is simpler than round-tripping a binary
+# keystore through a string-valued Container Apps "secret" for no security
+# benefit. See docker-compose.yaml's own `verifier-backend.volumes` comment
+# for context on what this file is; locally, that bind mount is still how
+# it's supplied - this wrapper is additive, not a replacement.
+#
+# Build the base Buildpacks image first (from the repo root), then this on
+# top of it, then push:
+#   ./gradlew bootBuildImage                  # -> build/eudi-srv-verifier-endpoint:latest
+#   cd docker-compose/verifier-backend
+#   docker build -f Dockerfile.azure -t trusteqaigarage.azurecr.io/eudi-verifier-backend:latest .
+#   docker push trusteqaigarage.azurecr.io/eudi-verifier-backend:latest
+FROM build/eudi-srv-verifier-endpoint:latest
+# Same Paketo Buildpacks base as the pid-issuer image (confirmed via
+# `docker inspect ... Config.User`: uid 1002 gid 1001) - its default user
+# can't write to "/", so switch to root only for this one COPY, then back.
+USER root
+COPY verifier-access.p12 /verifier-access.p12
+USER cnb
