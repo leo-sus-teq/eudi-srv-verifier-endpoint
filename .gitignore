@@ -50,3 +50,5 @@ docker-compose/verifier-backend/*.p12
 src/main/resources/*.jks
 !docker-compose/haproxy/certs/.gitkeep
 !docker-compose/verifier-backend/.gitkeep
+# Stamp file for the top-level Makefile's incremental image-build tracking
+.image-built

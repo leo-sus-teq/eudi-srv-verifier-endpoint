@@ -32,6 +32,13 @@ the [EUDI Wallet Reference Implementation project description](https://github.co
 >   certificate means recomputing it) - without this, HAIP-mode wallets
 >   reject the presentation request with
 >   `HaipNotSupported.ClientIdPrefixX509HashMustBeUsed`.
+> - **Image build step**: `docker-compose/docker-compose.yaml`'s
+>   `verifier-backend` service is set to `pull_policy: never` and expects a
+>   locally-built image, not the upstream one. Run `./gradlew
+>   bootBuildImage` from this directory *before* `docker compose up` (and
+>   again after any source change) - or, from the top-level repo, just run
+>   `./build-images.sh`/`build-images.ps1` once, which does this for both
+>   the issuer and this project together.
 
 ## Table of contents
 
