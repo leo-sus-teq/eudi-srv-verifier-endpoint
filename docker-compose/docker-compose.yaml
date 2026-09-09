@@ -6,12 +6,17 @@ networks:
 
 services:
   verifier-backend:
-    # Built locally via `./gradlew bootBuildImage` from the source in this repo
-    # (rebuild after any source change and re-run `docker compose up`). Tag is
-    # "build/eudi-srv-verifier-endpoint:latest" for the same reason as the issuer's
-    # own image tag - see that repo's docker-compose.yaml comment.
-    image: build/eudi-srv-verifier-endpoint:latest
-    pull_policy: never
+    # No `build:` block here - Compose itself can't build this (it's Spring
+    # Boot's own Cloud Native Buildpacks integration, `./gradlew
+    # bootBuildImage`, not a Dockerfile - see ../../../build-images.sh). If
+    # you've run that (or ../../../Makefile's `make images`) it produces
+    # "build/eudi-srv-verifier-endpoint:latest" locally and re-tags it to
+    # the name below. Otherwise, `docker compose up -d` pulls this tag from
+    # GHCR - no `pull_policy: never` override anymore, since "not built
+    # locally yet" is now the normal, successful case (see
+    # ../../../push-images.sh and the top-level README's GHCR section), not
+    # something to hard-refuse.
+    image: ghcr.io/leo-sus-teq/eudi-verifier-backend:latest
     container_name: verifier-backend
     volumes:
       - ./verifier-backend/verifier-access.p12:/verifier-access.p12
@@ -54,6 +59,11 @@ services:
     build:
       context: ../../eudi-web-verifier
       dockerfile: Dockerfile
+    # `docker compose up -d` pulls this from GHCR when no local image with
+    # this exact tag exists yet (Compose's own default: pull first, build
+    # from the `build:` block above only if that pull fails - see
+    # ../../../push-images.sh and the top-level README's GHCR section).
+    image: ghcr.io/leo-sus-teq/eudi-verifier-ui:latest
     container_name: verifier-ui
     environment:
       # Read by eudi-web-verifier's nginx envsubst-on-templates entrypoint
