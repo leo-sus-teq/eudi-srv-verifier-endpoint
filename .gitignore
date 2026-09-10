@@ -40,15 +40,22 @@ out/
 .kotlin
 
 ### Demo-only secrets & generated certs/keystores ###
-# Self-signed dev TLS cert and the verifier's own access-certificate
-# keystore/truststore - all regenerable per-environment, never meant to be
-# shared between machines. Never committed even though a working demo
-# needs them to exist locally - see the top-level demo repo's README for
-# how they get (re)generated on first run.
+# Self-signed dev TLS cert - regenerable per-environment, never meant to be
+# shared between machines, never committed even though a working demo
+# needs it to exist locally - see the top-level demo repo's README for how
+# it gets (re)generated on first run.
+#
+# docker-compose/verifier-backend/verifier-access.p12 is deliberately NOT
+# listed here (it used to be, incorrectly - copy-pasted from this same
+# pattern without noticing it's a different kind of file): unlike the TLS
+# cert above, it's a static, hash-pinned demo credential, not something
+# regenerated per environment - VERIFIER_ORIGINALCLIENTID in
+# docker-compose.yaml hardcodes its SHA-256 hash, so a fresh clone with no
+# committed .p12 (or a freshly-regenerated one with a different hash)
+# breaks verifier-backend outright at startup. It's committed, same as the
+# issuer's own equally-static issuer-keys.jks already was.
 docker-compose/haproxy/certs/*
-docker-compose/verifier-backend/*.p12
 src/main/resources/*.jks
 !docker-compose/haproxy/certs/.gitkeep
-!docker-compose/verifier-backend/.gitkeep
 # Stamp file for the top-level Makefile's incremental image-build tracking
 .image-built
